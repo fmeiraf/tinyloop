@@ -1,0 +1,15 @@
+[project]
+name = "tinyloop"
+version = "0.1.0"
+description = "A super lightweight library for LLM-based applications"
+readme = "README.md"
+authors = [{ name = "Fernando Meira", email = "fmeira.filho@gmail.com" }]
+requires-python = ">=3.11"
+dependencies = [
+    "instructor>=1.10.0",
+    "litellm>=1.75.9",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
