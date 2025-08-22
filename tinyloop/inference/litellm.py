@@ -1,13 +1,10 @@
-"""
-Base LLM inference model.
-"""
-
 import logging
 from typing import Any, Dict, List, Optional
 
 import litellm
 
 from tinyloop.inference.base import BaseInferenceModel
+from tinyloop.types import LLMResponse
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +40,7 @@ class LLM(BaseInferenceModel):
 
         self.sync_client = litellm.completion
         self.async_client = litellm.acompletion
+        self.run_cost = []
 
     def __call__(
         self,
@@ -50,7 +48,7 @@ class LLM(BaseInferenceModel):
         messages: Optional[List[Dict[str, Any]]] = None,
         stream: bool = False,
         **kwargs,
-    ) -> str:
+    ) -> LLMResponse:
         return self.invoke(prompt=prompt, messages=messages, stream=stream, **kwargs)
 
     async def acall(
@@ -59,7 +57,7 @@ class LLM(BaseInferenceModel):
         messages: Optional[List[Dict[str, Any]]] = None,
         stream: bool = False,
         **kwargs,
-    ) -> str:
+    ) -> LLMResponse:
         return await self.ainvoke(
             prompt=prompt, messages=messages, stream=stream, **kwargs
         )
@@ -70,14 +68,14 @@ class LLM(BaseInferenceModel):
         messages: Optional[List[Dict[str, Any]]] = None,
         stream: bool = False,
         **kwargs,
-    ) -> str:
+    ) -> LLMResponse:
         if messages is None:
             messages = self.message_history
             if not prompt:
                 raise ValueError("Prompt is required when messages is None")
             messages.append({"role": "user", "content": prompt})
 
-        response = self.sync_client(
+        raw_response = self.sync_client(
             model=self.model,
             messages=messages,
             temperature=self.temperature,
@@ -85,7 +83,30 @@ class LLM(BaseInferenceModel):
             stream=stream,
             **kwargs,
         )
-        return response
+
+        if raw_response.choices:
+            response = raw_response.choices[0].message.content
+            cost = raw_response._hidden_params["response_cost"]
+            hidden_fields = raw_response._hidden_params
+            self.add_message(
+                {
+                    "role": "assistant",
+                    "content": response,
+                }
+            )
+        else:
+            response = None
+            cost = 0
+            hidden_fields = {}
+
+        self.run_cost.append(cost)
+
+        return LLMResponse(
+            response=response,
+            raw_response=raw_response,
+            cost=cost,
+            hidden_fields=hidden_fields,
+        )
 
     async def ainvoke(
         self,
@@ -93,14 +114,14 @@ class LLM(BaseInferenceModel):
         messages: Optional[List[Dict[str, Any]]] = None,
         stream: bool = False,
         **kwargs,
-    ) -> str:
+    ) -> LLMResponse:
         if messages is None:
             messages = self.message_history
             if not prompt:
                 raise ValueError("Prompt is required when messages is None")
             messages.append({"role": "user", "content": prompt})
 
-        response = await self.async_client(
+        raw_response = await self.async_client(
             model=self.model,
             messages=messages,
             temperature=self.temperature,
@@ -108,7 +129,30 @@ class LLM(BaseInferenceModel):
             stream=stream,
             **kwargs,
         )
-        return response
+
+        if raw_response.choices:
+            response = raw_response.choices[0].message.content
+            cost = raw_response._hidden_params["response_cost"]
+            hidden_fields = raw_response._hidden_params
+            self.add_message(
+                {
+                    "role": "assistant",
+                    "content": response,
+                }
+            )
+        else:
+            response = None
+            cost = 0
+            hidden_fields = {}
+
+        self.run_cost.append(cost)
+
+        return LLMResponse(
+            response=response,
+            raw_response=raw_response,
+            cost=cost,
+            hidden_fields=hidden_fields,
+        )
 
     def get_history(self) -> List[Dict[str, Any]]:
         """
@@ -127,3 +171,9 @@ class LLM(BaseInferenceModel):
         Add a message to the message history.
         """
         self.message_history.append(message)
+
+    def get_total_cost(self) -> float:
+        """
+        Get cost of all runs.
+        """
+        return sum(self.run_cost)
