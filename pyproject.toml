@@ -6,9 +6,9 @@ readme = "README.md"
 authors = [{ name = "Fernando Meira", email = "fmeira.filho@gmail.com" }]
 requires-python = ">=3.11"
 dependencies = [
-    "instructor>=1.10.0",
     "litellm>=1.75.9",
     "mlflow>=3.3.1",
+    "pillow>=11.3.0",
     "pydantic>=2.11.7",
 ]
 
@@ -22,4 +22,5 @@ dev = [
     "pytest>=8.4.1",
     "pytest-asyncio>=1.1.0",
     "python-dotenv>=1.1.1",
+    "rich>=14.1.0",
 ]

@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 import litellm
 from pydantic import BaseModel
 
+from tinyloop.functionality.vision import Image
 from tinyloop.inference.base import BaseInferenceModel
 from tinyloop.types import LLMResponse
 
@@ -66,6 +67,7 @@ class LLM(BaseInferenceModel):
     def invoke(
         self,
         prompt: Optional[str] = None,
+        images: Optional[List[Image]] = None,
         messages: Optional[List[Dict[str, Any]]] = None,
         stream: bool = False,
         **kwargs,
@@ -74,7 +76,7 @@ class LLM(BaseInferenceModel):
             messages = self.message_history
             if not prompt:
                 raise ValueError("Prompt is required when messages is None")
-            messages.append({"role": "user", "content": prompt})
+            messages.append(self._prepate_user_message(prompt, images))
 
         raw_response = self.sync_client(
             model=self.model,
@@ -119,6 +121,7 @@ class LLM(BaseInferenceModel):
     async def ainvoke(
         self,
         prompt: Optional[str] = None,
+        images: Optional[List[Image]] = None,
         messages: Optional[List[Dict[str, Any]]] = None,
         stream: bool = False,
         **kwargs,
@@ -127,7 +130,7 @@ class LLM(BaseInferenceModel):
             messages = self.message_history
             if not prompt:
                 raise ValueError("Prompt is required when messages is None")
-            messages.append({"role": "user", "content": prompt})
+            messages.append(self._prepate_user_message(prompt, images))
 
         raw_response = await self.async_client(
             model=self.model,
@@ -200,3 +203,30 @@ class LLM(BaseInferenceModel):
         Parse a structured output from a response.
         """
         return response_format.model_validate_json(response)
+
+    def _prepate_user_message(
+        self, prompt: str, images: Optional[List[Image]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Prepare a user message.
+        """
+        if images:
+            return {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    *[
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": image.url,
+                                "format": image.mime_type,
+                            },
+                        }
+                        for image in images
+                    ],
+                ],
+            }
+
+        else:
+            return {"role": "user", "content": prompt}
