@@ -2,6 +2,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 import litellm
+from pydantic import BaseModel
 
 from tinyloop.inference.base import BaseInferenceModel
 from tinyloop.types import LLMResponse
@@ -85,13 +86,20 @@ class LLM(BaseInferenceModel):
         )
 
         if raw_response.choices:
-            response = raw_response.choices[0].message.content
+            response = (
+                self._parse_structured_output(
+                    raw_response.choices[0].message.content,
+                    kwargs.get("response_format"),
+                )
+                if kwargs.get("response_format")
+                else raw_response.choices[0].message.content
+            )
             cost = raw_response._hidden_params["response_cost"]
             hidden_fields = raw_response._hidden_params
             self.add_message(
                 {
                     "role": "assistant",
-                    "content": response,
+                    "content": raw_response.choices[0].message.content,
                 }
             )
         else:
@@ -131,13 +139,20 @@ class LLM(BaseInferenceModel):
         )
 
         if raw_response.choices:
-            response = raw_response.choices[0].message.content
+            response = (
+                self._parse_structured_output(
+                    raw_response.choices[0].message.content,
+                    kwargs.get("response_format"),
+                )
+                if kwargs.get("response_format")
+                else raw_response.choices[0].message.content
+            )
             cost = raw_response._hidden_params["response_cost"]
             hidden_fields = raw_response._hidden_params
             self.add_message(
                 {
                     "role": "assistant",
-                    "content": response,
+                    "content": raw_response.choices[0].message.content,
                 }
             )
         else:
@@ -177,3 +192,11 @@ class LLM(BaseInferenceModel):
         Get cost of all runs.
         """
         return sum(self.run_cost)
+
+    def _parse_structured_output(
+        self, response: str, response_format: BaseModel
+    ) -> BaseModel:
+        """
+        Parse a structured output from a response.
+        """
+        return response_format.model_validate_json(response)

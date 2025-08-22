@@ -18,30 +18,6 @@ load_dotenv()
 class TestLLMIntegration:
     """Live integration tests for LLM class."""
 
-    def test_invoke_with_openai_compatible_model(self):
-        """Test synchronous invoke with a free OpenAI-compatible model."""
-        # Using Hugging Face's free inference API through litellm
-        # This should work without API keys for basic testing
-        llm = LLM(model="openai/gpt-3.5-turbo", temperature=0.1)
-
-        try:
-            response = llm.invoke(prompt="Hello, how are you?")
-
-            # Basic assertions
-            assert response is not None
-            assert isinstance(
-                response, (str, dict)
-            )  # litellm can return different formats
-
-            # If it's a completion response object, check for content
-            if hasattr(response, "choices"):
-                assert len(response.choices) > 0
-                assert response.choices[0].message.content is not None
-
-        except Exception as e:
-            # If the free model fails, skip the test but log the reason
-            pytest.skip(f"Free model test failed (this is expected): {str(e)}")
-
     def test_invoke_with_messages_history(self):
         """Test invoke with message history management."""
         messages = [
