@@ -124,6 +124,7 @@ class LLM(BaseInferenceModel):
             cost=cost,
             hidden_fields=hidden_fields,
             tool_calls=tool_calls,
+            message_history=self.get_history(),
         )
 
     async def ainvoke(
@@ -183,6 +184,7 @@ class LLM(BaseInferenceModel):
             cost=cost,
             hidden_fields=hidden_fields,
             tool_calls=tool_calls,
+            message_history=self.get_history(),
         )
 
     def get_history(self) -> List[Dict[str, Any]]:
@@ -248,9 +250,11 @@ class LLM(BaseInferenceModel):
         """
         Parse tool calls from a response.
         """
+        if not raw_response.choices[0].message.tool_calls:
+            return None
+
         tool_calls = []
         for tool_call in raw_response.choices[0].message.tool_calls:
-            print(tool_call)
             if tool_call is not None:
                 tool_calls.append(
                     ToolCall(
