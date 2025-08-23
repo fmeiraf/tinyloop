@@ -9,7 +9,7 @@ import io
 import pytest
 from PIL import Image as PILImage
 
-from tinyloop.functionality.vision import Image, encode_image, is_image, is_url
+from tinyloop.features.vision import Image, encode_image, is_image, is_url
 
 
 class TestImageClass:

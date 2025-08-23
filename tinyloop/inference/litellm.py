@@ -6,8 +6,8 @@ import litellm
 from litellm.types.utils import ModelResponse
 from pydantic import BaseModel
 
-from tinyloop.functionality.function_calling import Tool
-from tinyloop.functionality.vision import Image
+from tinyloop.features.function_calling import Tool
+from tinyloop.features.vision import Image
 from tinyloop.inference.base import BaseInferenceModel
 from tinyloop.types import LLMResponse, ToolCall
 
