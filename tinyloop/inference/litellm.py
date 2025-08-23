@@ -11,6 +11,7 @@ from tinyloop.features.function_calling import Tool
 from tinyloop.features.vision import Image
 from tinyloop.inference.base import BaseInferenceModel
 from tinyloop.types import LLMResponse, ToolCall
+from tinyloop.utils.mlflow import mlflow_trace
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ class LLM(BaseInferenceModel):
     ) -> LLMResponse:
         return self.invoke(prompt=prompt, messages=messages, stream=stream, **kwargs)
 
-    @mlflow.trace(span_type=mlflow.entities.SpanType.LLM)
+    @mlflow_trace(mlflow.entities.SpanType.LLM)
     async def acall(
         self,
         prompt: Optional[str] = None,
@@ -70,6 +71,7 @@ class LLM(BaseInferenceModel):
             prompt=prompt, messages=messages, stream=stream, **kwargs
         )
 
+    @mlflow_trace(mlflow.entities.SpanType.LLM)
     def invoke(
         self,
         prompt: Optional[str] = None,
@@ -110,8 +112,25 @@ class LLM(BaseInferenceModel):
 
             tool_calls = self._parse_tool_calls(raw_response)
             if tool_calls:
-                for tool_call in tool_calls:
-                    self.add_message(tool_call.model_dump())
+                # Add a well-formed assistant message that contains tool_calls
+                # OpenAI expects `content` to be a string (use empty string when using tool_calls)
+                self.add_message(
+                    {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [
+                            {
+                                "id": tc.id,
+                                "type": "function",
+                                "function": {
+                                    "name": tc.function_name,
+                                    "arguments": json.dumps(tc.args),
+                                },
+                            }
+                            for tc in tool_calls
+                        ],
+                    }
+                )
 
             if content:
                 self.add_message(
@@ -177,8 +196,25 @@ class LLM(BaseInferenceModel):
 
             tool_calls = self._parse_tool_calls(raw_response)
             if tool_calls:
-                for tool_call in tool_calls:
-                    self.add_message(tool_call)
+                # Add a well-formed assistant message that contains tool_calls
+                # OpenAI expects `content` to be a string (use empty string when using tool_calls)
+                self.add_message(
+                    {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [
+                            {
+                                "id": tc.id,
+                                "type": "function",
+                                "function": {
+                                    "name": tc.function_name,
+                                    "arguments": json.dumps(tc.args),
+                                },
+                            }
+                            for tc in tool_calls
+                        ],
+                    }
+                )
 
             if content:
                 self.add_message(

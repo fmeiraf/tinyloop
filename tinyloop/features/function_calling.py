@@ -16,6 +16,8 @@ from typing import (
 
 import mlflow
 
+from tinyloop.utils.mlflow import mlflow_trace
+
 
 class Tool:
     """
@@ -50,12 +52,12 @@ class Tool:
             func, self.name, self.description, self.hidden_params
         )
 
-    @mlflow.trace(span_type=mlflow.entities.SpanType.TOOL)
+    @mlflow_trace(mlflow.entities.SpanType.TOOL)
     def __call__(self, *args, **kwargs):
         """Allow the tool to be called like the original function."""
         return self.func(*args, **kwargs)
 
-    @mlflow.trace(span_type=mlflow.entities.SpanType.TOOL)
+    @mlflow_trace(mlflow.entities.SpanType.TOOL)
     async def acall(self, *args, **kwargs):
         """Allow the tool to be called like the original function."""
         return await self.func(*args, **kwargs)

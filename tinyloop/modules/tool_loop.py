@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from tinyloop.features.function_calling import Tool
 from tinyloop.modules.base_loop import BaseLoop
+from tinyloop.utils.mlflow import mlflow_trace
 
 
 class ToolLoop(BaseLoop):
@@ -21,7 +22,7 @@ class ToolLoop(BaseLoop):
         tools.append(
             Tool(
                 name="finish",
-                description="Use this tool when you are done and want to finish the loop",
+                description="Use this tool when you are done and want to finish the task",
                 func=lambda: True,
             )
         )
@@ -36,27 +37,29 @@ class ToolLoop(BaseLoop):
         )
         self.max_iterations = max_iterations
 
-    @mlflow.trace(span_type=mlflow.entities.SpanType.AGENT)
+    @mlflow_trace(mlflow.entities.SpanType.AGENT)
     def __call__(self, prompt: str, **kwargs):
-        messages = [self.llm._prepare_user_message(prompt)]
+        self.llm.add_message(self.llm._prepare_user_message(prompt))
         for _ in range(self.max_iterations):
-            response = self.llm(messages=messages, tools=self.tools, **kwargs)
+            response = self.llm(
+                messages=self.llm.get_history(), tools=self.tools, **kwargs
+            )
             if response.tool_calls:
                 for tool_call in response.tool_calls:
-                    if tool_call.function_name == "finish":
-                        break
-
+                    print(tool_call)
                     tool_response = self.tools_map[tool_call.function_name](
                         **tool_call.args
                     )
-                    print(tool_response)
+
                     self.llm.add_message(
                         self._format_tool_response(tool_call, str(tool_response))
                     )
-                    print(self.llm.get_history())
+
+                    if tool_call.function_name == "finish":
+                        break
 
         return self.llm(
-            messages=messages,
+            messages=self.llm.get_history(),
             response_format=self.output_format,
         )
 
