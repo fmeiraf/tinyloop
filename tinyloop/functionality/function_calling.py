@@ -15,31 +15,31 @@ from typing import (
 )
 
 
-def tool(hidden_params: Optional[List[str]] = None):
+class Tool:
     """
-    Decorator to add tool metadata to a function.
+    A tool wrapper that converts a Python function to JSON tool definition.
 
     Args:
+        func: The function to convert to a tool
         hidden_params: List of parameter names to omit from the JSON signature
 
-    Returns:
-        The decorated function with tool metadata
-
     Example:
-        @tool(hidden_params=['context'])
         def get_weather(location: str, unit: str, context: dict):
             '''Get weather for a location'''
             return f"Weather in {location}"
+
+        weather_tool = Tool(get_weather, hidden_params=['context'])
+        tool_json = weather_tool.definition
     """
 
-    def decorator(func: Callable) -> Callable:
-        # Store metadata on the function
-        func._tool_definition = function_to_tool_json(func, hidden_params)
-        func._hidden_params = hidden_params or []
+    def __init__(self, func: Callable, hidden_params: Optional[List[str]] = None):
+        self.func = func
+        self.hidden_params = hidden_params or []
+        self.definition = function_to_tool_json(func, self.hidden_params)
 
-        return func
-
-    return decorator
+    def __call__(self, *args, **kwargs):
+        """Allow the tool to be called like the original function."""
+        return self.func(*args, **kwargs)
 
 
 def function_to_tool_json(

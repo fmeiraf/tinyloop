@@ -1,12 +1,15 @@
+import json
 import logging
 from typing import Any, Dict, List, Optional
 
 import litellm
+from litellm.types.utils import ModelResponse
 from pydantic import BaseModel
 
+from tinyloop.functionality.function_calling import Tool
 from tinyloop.functionality.vision import Image
 from tinyloop.inference.base import BaseInferenceModel
-from tinyloop.types import LLMResponse
+from tinyloop.types import LLMResponse, ToolCall
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +72,7 @@ class LLM(BaseInferenceModel):
         prompt: Optional[str] = None,
         images: Optional[List[Image]] = None,
         messages: Optional[List[Dict[str, Any]]] = None,
+        tools: Optional[List[Tool]] = None,
         stream: bool = False,
         **kwargs,
     ) -> LLMResponse:
@@ -84,6 +88,7 @@ class LLM(BaseInferenceModel):
             temperature=self.temperature,
             caching=self.use_cache,
             stream=stream,
+            tools=[tool.definition for tool in tools] if tools else None,
             **kwargs,
         )
 
@@ -98,6 +103,7 @@ class LLM(BaseInferenceModel):
             )
             cost = raw_response._hidden_params["response_cost"]
             hidden_fields = raw_response._hidden_params
+            tool_calls = self._parse_tool_calls(raw_response)
             self.add_message(
                 {
                     "role": "assistant",
@@ -108,6 +114,7 @@ class LLM(BaseInferenceModel):
             response = None
             cost = 0
             hidden_fields = {}
+            tool_calls = None
 
         self.run_cost.append(cost)
 
@@ -116,6 +123,7 @@ class LLM(BaseInferenceModel):
             raw_response=raw_response,
             cost=cost,
             hidden_fields=hidden_fields,
+            tool_calls=tool_calls,
         )
 
     async def ainvoke(
@@ -123,6 +131,7 @@ class LLM(BaseInferenceModel):
         prompt: Optional[str] = None,
         images: Optional[List[Image]] = None,
         messages: Optional[List[Dict[str, Any]]] = None,
+        tools: Optional[List[Tool]] = None,
         stream: bool = False,
         **kwargs,
     ) -> LLMResponse:
@@ -138,6 +147,7 @@ class LLM(BaseInferenceModel):
             temperature=self.temperature,
             caching=self.use_cache,
             stream=stream,
+            tools=[tool.definition for tool in tools] if tools else None,
             **kwargs,
         )
 
@@ -152,6 +162,7 @@ class LLM(BaseInferenceModel):
             )
             cost = raw_response._hidden_params["response_cost"]
             hidden_fields = raw_response._hidden_params
+            tool_calls = self._parse_tool_calls(raw_response)
             self.add_message(
                 {
                     "role": "assistant",
@@ -162,6 +173,7 @@ class LLM(BaseInferenceModel):
             response = None
             cost = 0
             hidden_fields = {}
+            tool_calls = None
 
         self.run_cost.append(cost)
 
@@ -170,6 +182,7 @@ class LLM(BaseInferenceModel):
             raw_response=raw_response,
             cost=cost,
             hidden_fields=hidden_fields,
+            tool_calls=tool_calls,
         )
 
     def get_history(self) -> List[Dict[str, Any]]:
@@ -230,3 +243,21 @@ class LLM(BaseInferenceModel):
 
         else:
             return {"role": "user", "content": prompt}
+
+    def _parse_tool_calls(self, raw_response: ModelResponse) -> List[ToolCall]:
+        """
+        Parse tool calls from a response.
+        """
+        tool_calls = []
+        for tool_call in raw_response.choices[0].message.tool_calls:
+            print(tool_call)
+            if tool_call is not None:
+                tool_calls.append(
+                    ToolCall(
+                        function_name=tool_call.function.name,
+                        args=json.loads(tool_call.function.arguments),
+                        tool_call_id=tool_call.id,
+                    )
+                )
+
+        return tool_calls

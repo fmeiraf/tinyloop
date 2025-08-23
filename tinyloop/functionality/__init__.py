@@ -1,8 +1,8 @@
 """Functionality modules for tinyloop."""
 
-from .function_calling import function_to_tool_json, tool
+from .function_calling import Tool, function_to_tool_json
 
 __all__ = [
-    "tool",
+    "Tool",
     "function_to_tool_json",
 ]
