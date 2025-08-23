@@ -14,6 +14,8 @@ from typing import (
     get_type_hints,
 )
 
+import mlflow
+
 
 class Tool:
     """
@@ -32,18 +34,38 @@ class Tool:
         tool_json = weather_tool.definition
     """
 
-    def __init__(self, func: Callable, hidden_params: Optional[List[str]] = None):
+    def __init__(
+        self,
+        func: Callable,
+        hidden_params: Optional[List[str]] = None,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+    ):
         self.func = func
         self.hidden_params = hidden_params or []
-        self.definition = function_to_tool_json(func, self.hidden_params)
+        self.name = name or func.__name__
+        self.description = description
 
+        self.definition = function_to_tool_json(
+            func, self.name, self.description, self.hidden_params
+        )
+
+    @mlflow.trace(span_type=mlflow.entities.SpanType.TOOL)
     def __call__(self, *args, **kwargs):
         """Allow the tool to be called like the original function."""
         return self.func(*args, **kwargs)
 
+    @mlflow.trace(span_type=mlflow.entities.SpanType.TOOL)
+    async def acall(self, *args, **kwargs):
+        """Allow the tool to be called like the original function."""
+        return await self.func(*args, **kwargs)
+
 
 def function_to_tool_json(
-    func: Callable, hidden_params: Optional[List[str]] = None
+    func: Callable,
+    name: Optional[str],
+    description: Optional[str] = None,
+    hidden_params: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     Convert a Python function to OpenAI function calling JSON format.
@@ -62,7 +84,8 @@ def function_to_tool_json(
     doc = inspect.getdoc(func) or ""
 
     # Parse docstring for description and parameter docs
-    description, param_docs = _parse_docstring(doc)
+    doc_description, param_docs = _parse_docstring(doc)
+    description = description or doc_description
 
     # Get type hints
     type_hints = get_type_hints(func)
@@ -112,7 +135,7 @@ def function_to_tool_json(
     return {
         "type": "function",
         "function": {
-            "name": func.__name__,
+            "name": name or func.__name__,
             "description": description,
             "parameters": {
                 "type": "object",

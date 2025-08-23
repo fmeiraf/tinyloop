@@ -83,7 +83,7 @@ class LLM(BaseInferenceModel):
             messages = self.message_history
             if not prompt:
                 raise ValueError("Prompt is required when messages is None")
-            messages.append(self._prepate_user_message(prompt, images))
+            messages.append(self._prepare_user_message(prompt, images))
 
         raw_response = self.sync_client(
             model=self.model,
@@ -96,9 +96,10 @@ class LLM(BaseInferenceModel):
         )
 
         if raw_response.choices:
+            content = raw_response.choices[0].message.content
             response = (
                 self._parse_structured_output(
-                    raw_response.choices[0].message.content,
+                    content,
                     kwargs.get("response_format"),
                 )
                 if kwargs.get("response_format")
@@ -106,13 +107,19 @@ class LLM(BaseInferenceModel):
             )
             cost = raw_response._hidden_params["response_cost"]
             hidden_fields = raw_response._hidden_params
+
             tool_calls = self._parse_tool_calls(raw_response)
-            self.add_message(
-                {
-                    "role": "assistant",
-                    "content": raw_response.choices[0].message.content,
-                }
-            )
+            if tool_calls:
+                for tool_call in tool_calls:
+                    self.add_message(tool_call.model_dump())
+
+            if content:
+                self.add_message(
+                    {
+                        "role": "assistant",
+                        "content": content,
+                    }
+                )
         else:
             response = None
             cost = 0
@@ -143,7 +150,7 @@ class LLM(BaseInferenceModel):
             messages = self.message_history
             if not prompt:
                 raise ValueError("Prompt is required when messages is None")
-            messages.append(self._prepate_user_message(prompt, images))
+            messages.append(self._prepare_user_message(prompt, images))
 
         raw_response = await self.async_client(
             model=self.model,
@@ -156,23 +163,30 @@ class LLM(BaseInferenceModel):
         )
 
         if raw_response.choices:
+            content = raw_response.choices[0].message.content
             response = (
                 self._parse_structured_output(
-                    raw_response.choices[0].message.content,
+                    content,
                     kwargs.get("response_format"),
                 )
                 if kwargs.get("response_format")
-                else raw_response.choices[0].message.content
+                else content
             )
             cost = raw_response._hidden_params["response_cost"]
             hidden_fields = raw_response._hidden_params
+
             tool_calls = self._parse_tool_calls(raw_response)
-            self.add_message(
-                {
-                    "role": "assistant",
-                    "content": raw_response.choices[0].message.content,
-                }
-            )
+            if tool_calls:
+                for tool_call in tool_calls:
+                    self.add_message(tool_call)
+
+            if content:
+                self.add_message(
+                    {
+                        "role": "assistant",
+                        "content": content,
+                    }
+                )
         else:
             response = None
             cost = 0
@@ -222,7 +236,7 @@ class LLM(BaseInferenceModel):
         """
         return response_format.model_validate_json(response)
 
-    def _prepate_user_message(
+    def _prepare_user_message(
         self, prompt: str, images: Optional[List[Image]] = None
     ) -> List[Dict[str, Any]]:
         """
@@ -263,7 +277,7 @@ class LLM(BaseInferenceModel):
                     ToolCall(
                         function_name=tool_call.function.name,
                         args=json.loads(tool_call.function.arguments),
-                        tool_call_id=tool_call.id,
+                        id=tool_call.id,
                     )
                 )
 

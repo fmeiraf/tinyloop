@@ -7,7 +7,7 @@ from pydantic import BaseModel
 class ToolCall(BaseModel):
     function_name: str
     args: dict[str, Any]
-    tool_call_id: str
+    id: str
 
 
 class LLMResponse(BaseModel):
