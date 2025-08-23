@@ -3,6 +3,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 import litellm
+import mlflow
 from litellm.types.utils import ModelResponse
 from pydantic import BaseModel
 
@@ -47,6 +48,7 @@ class LLM(BaseInferenceModel):
         self.async_client = litellm.acompletion
         self.run_cost = []
 
+    @mlflow.trace(span_type=mlflow.entities.SpanType.LLM)
     def __call__(
         self,
         prompt: Optional[str] = None,
@@ -56,6 +58,7 @@ class LLM(BaseInferenceModel):
     ) -> LLMResponse:
         return self.invoke(prompt=prompt, messages=messages, stream=stream, **kwargs)
 
+    @mlflow.trace(span_type=mlflow.entities.SpanType.LLM)
     async def acall(
         self,
         prompt: Optional[str] = None,
