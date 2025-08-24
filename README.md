@@ -1,11 +1,12 @@
-# 🚀 TinyLoop
+<p align="center">
+  <img src="docs/images/tiny_logo_v1.png" alt="tinyLoop Logo" width="200"/>
+</p>
 
 > A lightweight Python library for building AI-powered applications with clean function calling, vision support, and MLflow integration.
 
-[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![PyPI](https://img.shields.io/badge/pypi-tinyloop-blue.svg)](https://pypi.org/project/tinyloop/)
-[![LiteLLM](https://img.shields.io/badge/built%20on-LiteLLM-blue.svg)](https://github.com/BerriAI/litellm)
 
 TinyLoop is fully built on top of [LiteLLM](https://github.com/BerriAI/litellm), providing 100% compatibility with the LiteLLM API while adding powerful abstractions and utilities. This means you can use any model, provider, or feature that LiteLLM supports, including:
 
