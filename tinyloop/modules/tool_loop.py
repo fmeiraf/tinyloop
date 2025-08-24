@@ -19,11 +19,14 @@ class ToolLoop(BaseLoop):
         system_prompt: str = None,
         llm_kwargs: dict = {},
     ):
+        def finish_func():
+            return True
+
         tools.append(
             Tool(
                 name="finish",
                 description="Use this tool when you are done and want to finish the task",
-                func=lambda: True,
+                func=finish_func,
             )
         )
 
@@ -77,7 +80,7 @@ class ToolLoop(BaseLoop):
             if response.tool_calls:
                 should_finish = False
                 for tool_call in response.tool_calls:
-                    tool_response = await self.tools_map[tool_call.function_name](
+                    tool_response = await self.tools_map[tool_call.function_name].acall(
                         **tool_call.args
                     )
 
@@ -93,5 +96,5 @@ class ToolLoop(BaseLoop):
                     break
 
         return await self.llm.acall(
-            messages=self.llm.get_history(), response_format=self.output_f
+            messages=self.llm.get_history(), response_format=self.output_format
         )
