@@ -45,8 +45,8 @@ class ToolLoop(BaseLoop):
                 messages=self.llm.get_history(), tools=self.tools, **kwargs
             )
             if response.tool_calls:
+                should_finish = False
                 for tool_call in response.tool_calls:
-                    print(tool_call)
                     tool_response = self.tools_map[tool_call.function_name](
                         **tool_call.args
                     )
@@ -56,12 +56,42 @@ class ToolLoop(BaseLoop):
                     )
 
                     if tool_call.function_name == "finish":
+                        should_finish = True
                         break
+
+                if should_finish:
+                    break
 
         return self.llm(
             messages=self.llm.get_history(),
             response_format=self.output_format,
         )
 
+    @mlflow_trace(mlflow.entities.SpanType.AGENT)
     async def acall(self, prompt: str, **kwargs):
-        pass
+        self.llm.add_message(self.llm._prepare_user_message(prompt))
+        for _ in range(self.max_iterations):
+            response = await self.llm.acall(
+                messages=self.llm.get_history(), tools=self.tools, **kwargs
+            )
+            if response.tool_calls:
+                should_finish = False
+                for tool_call in response.tool_calls:
+                    tool_response = await self.tools_map[tool_call.function_name](
+                        **tool_call.args
+                    )
+
+                    self.llm.add_message(
+                        self._format_tool_response(tool_call, str(tool_response))
+                    )
+
+                    if tool_call.function_name == "finish":
+                        should_finish = True
+                        break
+
+                if should_finish:
+                    break
+
+        return await self.llm.acall(
+            messages=self.llm.get_history(), response_format=self.output_f
+        )
