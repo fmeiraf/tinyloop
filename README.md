@@ -69,7 +69,51 @@ response = await llm.acall(prompt="Hello, how are you?")
 print(response)
 ```
 
-### 🎯 Structured Output Generation
+### 🔄 Tool Loops
+
+Execute multi-step tool calling workflows:
+
+```python
+from tinyloop.modules.tool_loop import ToolLoop
+from tinyloop.features.function_calling import Tool
+from pydantic import BaseModel
+import random
+
+def roll_dice():
+    """Roll a dice and return the result"""
+    return random.randint(1, 6)
+
+class FinalAnswer(BaseModel):
+    last_roll: int
+    reached_goal: bool
+
+# Create tool loop
+loop = ToolLoop(
+    model="openai/gpt-4.1",
+    system_prompt="""
+    You are a dice rolling assistant.
+    Roll a dice until you get the number indicated in the prompt.
+    Use the roll_dice function to roll the dice.
+    Return the last roll and whether you reached the goal.
+    """,
+    temperature=0.1,
+    output_format=FinalAnswer,
+    tools=[Tool(roll_dice)]
+)
+
+# Execute the loop
+response = loop(
+    prompt="Roll a dice until you get a 6",
+    parallel_tool_calls=False,
+)
+
+print(f"Last roll: {response.last_roll}")
+print(f"Reached goal: {response.reached_goal}")
+```
+
+### Supported Features
+
+#### 🎯 Structured Output Generation
 
 Generate structured data using Pydantic models:
 
@@ -104,39 +148,7 @@ for event in response.events:
     print(f"Participants: {', '.join(event.participants)}")
 ```
 
-### 📊 Comprehensive Response Information
-
-Every TinyLoop request returns a rich response object with detailed information:
-
-```python
-from tinyloop.inference.litellm import LLM
-
-llm = LLM(model="openai/gpt-4.1-nano", temperature=0.1)
-
-response = llm(prompt="Explain quantum computing in one sentence")
-
-# Access the main response content
-print(f"Response: {response}")
-
-# Cost tracking (in USD)
-print(f"Cost: ${response.cost:.6f}")
-
-# Tool calls (if any were made)
-print(f"Tool calls: {response.tool_calls}")
-
-# Raw LiteLLM response object
-print(f"Raw response: {response.raw_response}")
-
-# Complete conversation history
-print(f"Message history: {len(response.message_history)} messages")
-
-# Hidden fields with additional metadata
-print(f"Provider: {response.hidden_fields.get('custom_llm_provider')}")
-print(f"Model: {response.hidden_fields.get('litellm_model_name')}")
-print(f"Response time: {response.hidden_fields.get('_response_ms')}ms")
-```
-
-### 👁️ Vision Support
+#### 👁️ Vision
 
 Work with images using various input methods:
 
@@ -162,7 +174,7 @@ response = llm(prompt="Describe this image", images=[image])
 print(response)
 ```
 
-### 🔧 Function Calling
+#### 🔧 Function Calling
 
 Convert Python functions to LLM tools with automatic schema generation:
 
@@ -211,127 +223,50 @@ print(f"Tool calls made: {len(inference.tool_calls) if inference.tool_calls else
 print(f"Conversation length: {len(inference.message_history)} messages")
 ```
 
-### 🔄 Tool Loops
+### 🔍 Observability: MLflow Integration
 
-Execute multi-step tool calling workflows:
-
-```python
-from tinyloop.modules.tool_loop import ToolLoop
-from tinyloop.features.function_calling import Tool
-from pydantic import BaseModel
-import random
-
-def roll_dice():
-    """Roll a dice and return the result"""
-    return random.randint(1, 6)
-
-class FinalAnswer(BaseModel):
-    last_roll: int
-    reached_goal: bool
-
-# Create tool loop
-loop = ToolLoop(
-    model="openai/gpt-4.1",
-    system_prompt="""
-    You are a dice rolling assistant.
-    Roll a dice until you get the number indicated in the prompt.
-    Use the roll_dice function to roll the dice.
-    Return the last roll and whether you reached the goal.
-    """,
-    temperature=0.1,
-    output_format=FinalAnswer,
-    tools=[Tool(roll_dice)]
-)
-
-# Execute the loop
-response = loop(
-    prompt="Roll a dice until you get a 6",
-    parallel_tool_calls=False,
-)
-
-print(f"Last roll: {response.last_roll}")
-print(f"Reached goal: {response.reached_goal}")
-```
-
-### 📊 Generate Module
-
-Use the dedicated Generate module for structured content generation:
-
-```python
-from tinyloop.modules.generate import Generate
-from pydantic import BaseModel
-from typing import List
-
-class Character(BaseModel):
-    name: str
-    description: str
-    image: str
-
-class Characters(BaseModel):
-    characters: List[Character]
-
-# Create generate instance
-generate = Generate(
-    model="openai/gpt-4.1-nano",
-    temperature=0.1,
-    output_format=Characters
-)
-
-# Generate structured content
-response = generate(prompt="Give me 3 Harry Potter characters")
-
-for character in response.characters:
-    print(f"Name: {character.name}")
-    print(f"Description: {character.description}")
-    print(f"Image: {character.image}")
-    print("---")
-```
-
-## 🔍 MLflow Integration
-
-### Automatic Tracing
+#### Automatic Tracing
 
 TinyLoop automatically integrates with MLflow for tracing:
 
 ```python
-import mlflow
-from tinyloop.features.function_calling import Tool
+from tinyloop.utils.mlflow import mlflow_trace
 
-def get_stock_price(symbol: str, currency: str = "USD"):
-    """Get stock price for a symbol."""
-    return f"Stock price for {symbol}: $150.00 {currency}"
+class Agent:
+    @mlflow_trace(mlflow.entities.SpanType.AGENT)
+    def __call__(self, prompt: str, **kwargs):
+        self.llm.add_message(self.llm._prepare_user_message(prompt))
+        for _ in range(self.max_iterations):
+            response = self.llm(
+                messages=self.llm.get_history(), tools=self.tools, **kwargs
+            )
+            if response.tool_calls:
+                should_finish = False
+                for tool_call in response.tool_calls:
+                    tool_response = self.tools_map[tool_call.function_name](
+                        **tool_call.args
+                    )
 
-# Create tool with custom name
-stock_tool = Tool(get_stock_price, name="stock_service")
+                    self.llm.add_message(
+                        self._format_tool_response(tool_call, str(tool_response))
+                    )
 
-# Start MLflow run
-with mlflow.start_run():
-    # This will create a span named "stock_service.__call__"
-    result = stock_tool("AAPL", "USD")
-```
+                    if tool_call.function_name == "finish":
+                        should_finish = True
+                        break
 
-### Custom Tracing
+                if should_finish:
+                    break
 
-For advanced scenarios, use custom MLflow tracing:
-
-```python
-from tinyloop.utils.mlflow import mlflow_trace_custom
-import mlflow
-
-class CustomTool:
-    def __init__(self, name: str):
-        self.name = name
-
-    @mlflow_trace_custom(
-        mlflow.entities.SpanType.TOOL,
-        lambda self, func: f"{self.name}.{func.__name__}"
+        return self.llm(
+            messages=self.llm.get_history(),
+            response_format=self.output_format,
     )
-    def execute(self, *args, **kwargs):
-        return f"Executed {self.name} with {args}"
-
-# This will create spans named "my_tool.execute"
-tool = CustomTool("my_tool")
 ```
+
+<p align="center">
+  <img src="docs/images/mlflow_example.png" alt="tinyLoop Logo"/>
+</p>
 
 ## 🏗️ Project Structure
 
