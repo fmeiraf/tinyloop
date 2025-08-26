@@ -18,6 +18,8 @@ import mlflow
 
 from tinyloop.utils.mlflow import mlflow_trace_custom
 
+mlflow.config.enable_async_logging(True)
+
 
 class Tool:
     """
@@ -57,14 +59,19 @@ class Tool:
     )
     def __call__(self, *args, **kwargs):
         """Allow the tool to be called like the original function."""
-        return self.func(*args, **kwargs)
+        tool_result = self.func(*args, **kwargs)
+        return tool_result
 
     @mlflow_trace_custom(
         mlflow.entities.SpanType.TOOL, lambda self, func: f"{self.name}.{func.__name__}"
     )
     async def acall(self, *args, **kwargs):
         """Allow the tool to be called like the original function."""
-        return await self.func(*args, **kwargs)
+        if inspect.iscoroutinefunction(self.func):
+            tool_result = await self.func(*args, **kwargs)
+        else:
+            tool_result = self.func(*args, **kwargs)
+        return tool_result
 
 
 def function_to_tool_json(

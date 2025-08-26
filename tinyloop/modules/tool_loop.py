@@ -66,11 +66,11 @@ class ToolLoop(BaseLoop):
 
                 if should_finish:
                     break
-
-        return self.llm(
+        final_response = self.llm(
             messages=self.llm.get_history(),
             response_format=self.output_format,
         )
+        return final_response
 
     @mlflow_trace(mlflow.entities.SpanType.AGENT)
     async def acall(self, prompt: str, **kwargs):
@@ -97,6 +97,7 @@ class ToolLoop(BaseLoop):
                 if should_finish:
                     break
 
-        return await self.llm.acall(
+        final_response = await self.llm.acall(
             messages=self.llm.get_history(), response_format=self.output_format
         )
+        return final_response

@@ -1,10 +1,13 @@
 from abc import abstractmethod
 from typing import List
 
+import mlflow
 from pydantic import BaseModel
 
 from tinyloop.features.function_calling import Tool
 from tinyloop.inference.litellm import LLM, ToolCall
+
+mlflow.config.enable_async_logging(True)
 
 
 class BaseLoop:

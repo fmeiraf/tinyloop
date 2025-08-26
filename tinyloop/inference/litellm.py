@@ -15,6 +15,8 @@ from tinyloop.utils.mlflow import mlflow_trace
 
 logger = logging.getLogger(__name__)
 
+mlflow.config.enable_async_logging(True)
+
 
 class LLM(BaseInferenceModel):
     """
@@ -67,9 +69,10 @@ class LLM(BaseInferenceModel):
         stream: bool = False,
         **kwargs,
     ) -> LLMResponse:
-        return await self.ainvoke(
+        final_response = await self.ainvoke(
             prompt=prompt, messages=messages, stream=stream, **kwargs
         )
+        return final_response
 
     @mlflow_trace(mlflow.entities.SpanType.LLM)
     def invoke(
