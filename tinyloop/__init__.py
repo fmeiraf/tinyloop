@@ -2,20 +2,13 @@
 TinyLoop - A super lightweight library for LLM-based applications
 """
 
+# Import main classes for easier access
+from tinyloop.inference.litellm import LLM
+from tinyloop.modules.generate import Generate
+from tinyloop.modules.tool_loop import ToolLoop
 
-def hello() -> str:
-    return "Hello from tinyloop!"
+# Export main classes
+__all__ = ["LLM", "Generate", "ToolLoop"]
 
-
-def initialize_tracing():
-    """Initialize MLflow tracing when needed."""
-    try:
-        from .observability.mlflow import initialize_mlflow
-
-        return initialize_mlflow()
-    except Exception as e:
-        print(f"Warning: Failed to initialize tracing: {e}")
-        return False
-
-
-__all__ = ["hello", "initialize_tracing"]
+# Version info
+__version__ = "0.1.0"
