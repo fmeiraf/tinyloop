@@ -1,6 +1,6 @@
 [project]
 name = "tinyloop"
-version = "0.1.2"
+version = "0.1.21"
 description = "A super lightweight library for LLM-based applications"
 readme = "README.md"
 authors = [{ name = "Fernando Meira", email = "fmeira.filho@gmail.com" }]
