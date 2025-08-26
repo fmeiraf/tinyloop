@@ -7,6 +7,8 @@ from tinyloop.features.function_calling import Tool
 from tinyloop.modules.base_loop import BaseLoop
 from tinyloop.utils.mlflow import mlflow_trace
 
+mlflow.litellm.autolog()
+
 
 class ToolLoop(BaseLoop):
     def __init__(
