@@ -219,7 +219,7 @@ class LLM(BaseInferenceModel):
                     }
                 )
 
-            if content:
+            if content and not tool_calls:
                 self.add_message(
                     {
                         "role": "assistant",
