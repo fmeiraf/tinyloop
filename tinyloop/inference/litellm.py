@@ -108,7 +108,7 @@ class LLM(BaseInferenceModel):
                     kwargs.get("response_format"),
                 )
                 if kwargs.get("response_format")
-                else raw_response.choices[0].message.content
+                else content
             )
             cost = raw_response._hidden_params["response_cost"]
             hidden_fields = raw_response._hidden_params
@@ -120,7 +120,7 @@ class LLM(BaseInferenceModel):
                 self.add_message(
                     {
                         "role": "assistant",
-                        "content": "",
+                        "content": response or "",
                         "tool_calls": [
                             {
                                 "id": tc.id,
@@ -204,7 +204,7 @@ class LLM(BaseInferenceModel):
                 self.add_message(
                     {
                         "role": "assistant",
-                        "content": "",
+                        "content": response or "",
                         "tool_calls": [
                             {
                                 "id": tc.id,
@@ -301,6 +301,15 @@ class LLM(BaseInferenceModel):
 
         else:
             return {"role": "user", "content": prompt}
+
+    def _prepare_assistant_message(self, content: str) -> Dict[str, Any]:
+        """
+        Parse an assistant message from a response.
+        """
+        return {
+            "role": "assistant",
+            "content": content,
+        }
 
     def _parse_tool_calls(self, raw_response: ModelResponse) -> List[ToolCall]:
         """
