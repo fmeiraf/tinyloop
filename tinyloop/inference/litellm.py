@@ -17,8 +17,6 @@ from tinyloop.utils.mlflow import mlflow_trace
 logger = logging.getLogger(__name__)
 
 mlflow.config.enable_async_logging(True)
-litellm.success_callback = ["langfuse"]
-litellm.failure_callback = ["langfuse"]
 
 
 class LLM(BaseInferenceModel):
