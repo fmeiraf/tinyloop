@@ -1,12 +1,11 @@
 from typing import List
 
 import mlflow
-from langfuse import observe
 from pydantic import BaseModel
 
 from tinyloop.features.function_calling import Tool
 from tinyloop.modules.base_loop import BaseLoop
-from tinyloop.utils.mlflow import mlflow_trace
+from tinyloop.utils.observability import set_trace_custom
 
 mlflow.litellm.autolog()
 
@@ -43,8 +42,9 @@ class ToolLoop(BaseLoop):
         )
         self.max_iterations = max_iterations
 
-    @observe(name="tinyloop.tool_loop")
-    @mlflow_trace(mlflow.entities.SpanType.AGENT)
+    @set_trace_custom(
+        mlflow.entities.SpanType.AGENT, lambda self, func: "tinyloop.tool_loop"
+    )
     def __call__(self, prompt: str, **kwargs):
         self.llm.add_message(self.llm._prepare_user_message(prompt))
         for _ in range(self.max_iterations):
@@ -74,8 +74,9 @@ class ToolLoop(BaseLoop):
         )
         return final_response
 
-    @observe(name="tinyloop.tool_loop")
-    @mlflow_trace(mlflow.entities.SpanType.AGENT)
+    @set_trace_custom(
+        mlflow.entities.SpanType.AGENT, lambda self, func: "tinyloop.tool_loop"
+    )
     async def acall(self, prompt: str, **kwargs):
         self.llm.add_message(self.llm._prepare_user_message(prompt))
         for _ in range(self.max_iterations):

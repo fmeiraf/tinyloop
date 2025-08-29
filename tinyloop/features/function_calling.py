@@ -15,10 +15,9 @@ from typing import (
 )
 
 import mlflow
-from langfuse import observe
 
 from tinyloop.types import ToolCallResponse
-from tinyloop.utils.mlflow import mlflow_trace_custom
+from tinyloop.utils.observability import set_trace_custom
 
 mlflow.config.enable_async_logging(True)
 
@@ -56,8 +55,7 @@ class Tool:
             func, self.name, self.description, self.hidden_params
         )
 
-    @observe(name="tinyloop.tool")
-    @mlflow_trace_custom(
+    @set_trace_custom(
         mlflow.entities.SpanType.TOOL, lambda self, func: f"{self.name}.{func.__name__}"
     )
     def __call__(self, *args, **kwargs) -> ToolCallResponse:
@@ -65,8 +63,7 @@ class Tool:
         tool_result = self.func(*args, **kwargs)
         return tool_result
 
-    @observe(name="tinyloop.tool")
-    @mlflow_trace_custom(
+    @set_trace_custom(
         mlflow.entities.SpanType.TOOL, lambda self, func: f"{self.name}.{func.__name__}"
     )
     async def acall(self, *args, **kwargs) -> ToolCallResponse:
