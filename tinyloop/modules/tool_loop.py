@@ -1,6 +1,7 @@
 from typing import List
 
 import mlflow
+from langfuse import observe
 from pydantic import BaseModel
 
 from tinyloop.features.function_calling import Tool
@@ -42,6 +43,7 @@ class ToolLoop(BaseLoop):
         )
         self.max_iterations = max_iterations
 
+    @observe(name="tinyloop.tool_loop")
     @mlflow_trace(mlflow.entities.SpanType.AGENT)
     def __call__(self, prompt: str, **kwargs):
         self.llm.add_message(self.llm._prepare_user_message(prompt))
@@ -72,6 +74,7 @@ class ToolLoop(BaseLoop):
         )
         return final_response
 
+    @observe(name="tinyloop.tool_loop")
     @mlflow_trace(mlflow.entities.SpanType.AGENT)
     async def acall(self, prompt: str, **kwargs):
         self.llm.add_message(self.llm._prepare_user_message(prompt))

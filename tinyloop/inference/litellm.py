@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 
 import litellm
 import mlflow
+from langfuse import observe
 from litellm.types.utils import ModelResponse
 from pydantic import BaseModel
 
@@ -16,6 +17,8 @@ from tinyloop.utils.mlflow import mlflow_trace
 logger = logging.getLogger(__name__)
 
 mlflow.config.enable_async_logging(True)
+litellm.success_callback = ["langfuse"]
+litellm.failure_callback = ["langfuse"]
 
 
 class LLM(BaseInferenceModel):
@@ -51,6 +54,7 @@ class LLM(BaseInferenceModel):
         self.async_client = litellm.acompletion
         self.run_cost = []
 
+    @observe(name="litellm.completion", as_type="generation")
     @mlflow.trace(span_type=mlflow.entities.SpanType.LLM)
     def __call__(
         self,
@@ -61,6 +65,7 @@ class LLM(BaseInferenceModel):
     ) -> LLMResponse:
         return self.invoke(prompt=prompt, messages=messages, stream=stream, **kwargs)
 
+    @observe(name="litellm.completion", as_type="generation")
     @mlflow_trace(mlflow.entities.SpanType.LLM)
     async def acall(
         self,
@@ -74,7 +79,6 @@ class LLM(BaseInferenceModel):
         )
         return final_response
 
-    @mlflow_trace(mlflow.entities.SpanType.LLM)
     def invoke(
         self,
         prompt: Optional[str] = None,

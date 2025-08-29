@@ -15,6 +15,7 @@ from typing import (
 )
 
 import mlflow
+from langfuse import observe
 
 from tinyloop.types import ToolCallResponse
 from tinyloop.utils.mlflow import mlflow_trace_custom
@@ -55,6 +56,7 @@ class Tool:
             func, self.name, self.description, self.hidden_params
         )
 
+    @observe(name="tinyloop.tool")
     @mlflow_trace_custom(
         mlflow.entities.SpanType.TOOL, lambda self, func: f"{self.name}.{func.__name__}"
     )
@@ -63,6 +65,7 @@ class Tool:
         tool_result = self.func(*args, **kwargs)
         return tool_result
 
+    @observe(name="tinyloop.tool")
     @mlflow_trace_custom(
         mlflow.entities.SpanType.TOOL, lambda self, func: f"{self.name}.{func.__name__}"
     )
