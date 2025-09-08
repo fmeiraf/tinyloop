@@ -112,7 +112,7 @@ class LLM(BaseInferenceModel):
                 if kwargs.get("response_format")
                 else content
             )
-            cost = raw_response._hidden_params["response_cost"]
+            cost = raw_response._hidden_params["response_cost"] or 0
             hidden_fields = raw_response._hidden_params
 
             tool_calls = self._parse_tool_calls(raw_response)
