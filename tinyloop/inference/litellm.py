@@ -1,5 +1,7 @@
+import asyncio
 import json
 import logging
+import sys
 from typing import Any, Dict, List, Optional
 
 import litellm
@@ -16,6 +18,77 @@ from tinyloop.utils.mlflow import mlflow_trace
 logger = logging.getLogger(__name__)
 
 mlflow.config.enable_async_logging(True)
+
+
+class CostTracker:
+    """Tracks costs from litellm callbacks by capturing stdout."""
+
+    def __init__(self):
+        self.latest_cost = 0.0
+        self._original_stdout = sys.stdout
+        self.cost_received_event = None
+        self.is_capturing = False
+
+    def start_cost_capture(self):
+        """Start capturing cost from stdout."""
+        self.cost_received_event = asyncio.Event()
+        self.latest_cost = 0.0
+        self.is_capturing = True
+
+        class CostCapturingStdout:
+            def __init__(self, original_stdout, cost_tracker):
+                self.original_stdout = original_stdout
+                self.cost_tracker = cost_tracker
+
+            def write(self, text):
+                # Write to original stdout
+                self.original_stdout.write(text)
+                # Extract cost if it's in the expected format
+                if self.cost_tracker.is_capturing and "tloop_final_cost=" in text:
+                    try:
+                        cost_str = text.split("tloop_final_cost=")[1].strip()
+                        self.cost_tracker.latest_cost = float(cost_str)
+                        # Signal that cost has been received
+                        if self.cost_tracker.cost_received_event:
+                            self.cost_tracker.cost_received_event.set()
+                    except (IndexError, ValueError):
+                        pass
+                return len(text)
+
+            def flush(self):
+                self.original_stdout.flush()
+
+        # Set up the capturing stdout
+        sys.stdout = CostCapturingStdout(self._original_stdout, self)
+
+    def stop_cost_capture(self):
+        """Stop capturing cost and restore original stdout."""
+        self.is_capturing = False
+        sys.stdout = self._original_stdout
+
+    async def wait_for_cost(self, timeout=2.0):
+        """Wait for cost to be captured with a timeout."""
+        if self.cost_received_event:
+            try:
+                await asyncio.wait_for(self.cost_received_event.wait(), timeout=timeout)
+            except asyncio.TimeoutError:
+                logger.warning(f"Cost capture timed out after {timeout}s, using 0.0")
+
+    def get_latest_cost(self):
+        """Get the latest captured cost."""
+        return self.latest_cost
+
+
+# Global cost tracker instance
+cost_tracker = CostTracker()
+
+
+async def track_cost_callback(kwargs, completion_response, start_time, end_time):
+    cost = kwargs["response_cost"]
+    print(f"tloop_final_cost={cost:.6f}")
+
+
+litellm.success_callback = [track_cost_callback]
 
 
 class LLM(BaseInferenceModel):
@@ -349,6 +422,9 @@ class LLM(BaseInferenceModel):
         tool_call_deltas = []  # store last values for all tool calls (id, function_name, function_arguments)
         latest_tool_calls = []
 
+        # Start cost tracking
+        cost_tracker.start_cost_capture()
+
         async for chunk in stream_response:
             id = chunk.id if chunk.id else id
 
@@ -434,10 +510,23 @@ class LLM(BaseInferenceModel):
                 }
             )
 
+        # Wait for cost callback to complete (with timeout)
+        await cost_tracker.wait_for_cost(timeout=2.0)
+
+        # Stop cost tracking and restore stdout
+        cost_tracker.stop_cost_capture()
+
+        # Get captured cost
+        captured_cost = cost_tracker.get_latest_cost()
+        print(f"captured_cost: {captured_cost}")
+
+        # Add cost to run_cost tracking
+        self.run_cost.append(captured_cost)
+
         yield LLMResponse(
             response=response,
             tool_calls=latest_tool_calls,
             message_history=self.get_history(),
-            cost=0,
+            cost=captured_cost,
             hidden_fields={},
         )
