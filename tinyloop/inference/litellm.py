@@ -5,13 +5,12 @@ from typing import Any, Dict, List, Optional
 import litellm
 import mlflow
 from langfuse import observe
-from litellm.types.utils import ModelResponse
 from pydantic import BaseModel
 
 from tinyloop.features.function_calling import Tool
 from tinyloop.features.vision import Image
 from tinyloop.inference.base import BaseInferenceModel
-from tinyloop.types import LLMResponse, ToolCall
+from tinyloop.types import LLMResponse, LLMStreamingResponse, ToolCall, ToolCallDelta
 from tinyloop.utils.mlflow import mlflow_trace
 
 logger = logging.getLogger(__name__)
@@ -86,6 +85,8 @@ class LLM(BaseInferenceModel):
         stream: bool = False,
         **kwargs,
     ) -> LLMResponse:
+        if stream:
+            raise ValueError("Stream is not supported for sync mode")
         if messages is None:
             messages = self.message_history
             if not prompt:
@@ -115,7 +116,9 @@ class LLM(BaseInferenceModel):
             cost = raw_response._hidden_params["response_cost"] or 0
             hidden_fields = raw_response._hidden_params
 
-            tool_calls = self._parse_tool_calls(raw_response)
+            tool_calls = self._parse_tool_calls(
+                raw_response.choices[0].message.tool_calls
+            )
             if tool_calls:
                 # Add a well-formed assistant message that contains tool_calls
                 # OpenAI expects `content` to be a string (use empty string when using tool_calls)
@@ -186,6 +189,9 @@ class LLM(BaseInferenceModel):
             **kwargs,
         )
 
+        if stream:
+            return self._parse_streaming_response(raw_response)
+
         if raw_response.choices:
             content = raw_response.choices[0].message.content
             response = (
@@ -199,7 +205,10 @@ class LLM(BaseInferenceModel):
             cost = raw_response._hidden_params["response_cost"] or 0
             hidden_fields = raw_response._hidden_params
 
-            tool_calls = self._parse_tool_calls(raw_response)
+            tool_calls = self._parse_tool_calls(
+                raw_response.choices[0].message.tool_calls
+            )
+
             if tool_calls:
                 # Add a well-formed assistant message that contains tool_calls
                 # OpenAI expects `content` to be a string (use empty string when using tool_calls)
@@ -313,15 +322,16 @@ class LLM(BaseInferenceModel):
             "content": content,
         }
 
-    def _parse_tool_calls(self, raw_response: ModelResponse) -> List[ToolCall]:
+    def _parse_tool_calls(self, raw_tool_calls: List) -> List[ToolCall]:
         """
         Parse tool calls from a response.
         """
-        if not raw_response.choices[0].message.tool_calls:
+        if not raw_tool_calls:
             return None
 
         tool_calls = []
-        for tool_call in raw_response.choices[0].message.tool_calls:
+        for tool_call in raw_tool_calls:
+            print(f"tool_call: {tool_call}")
             if tool_call is not None:
                 tool_calls.append(
                     ToolCall(
@@ -332,3 +342,102 @@ class LLM(BaseInferenceModel):
                 )
 
         return tool_calls
+
+    async def _parse_streaming_response(self, stream_response) -> List[Dict[str, Any]]:
+        id = None
+        response = ""
+        tool_call_deltas = []  # store last values for all tool calls (id, function_name, function_arguments)
+        latest_tool_calls = []
+
+        async for chunk in stream_response:
+            id = chunk.id if chunk.id else id
+
+            choice_content = (
+                chunk.choices[0].delta.content
+                if chunk.choices[0].delta.content
+                else None
+            )
+            # print(f"chunk: {chunk}")
+            # print(f"choice_content: {choice_content}")
+            if choice_content:
+                # model text response
+                response += choice_content or ""
+
+            # parsing tool calls
+            if not chunk.choices[0].delta.tool_calls:
+                yield LLMStreamingResponse(
+                    id=id,
+                    response=response,
+                    tool_calls=latest_tool_calls,
+                )
+                continue
+
+            for i, tool_call_delta in enumerate(chunk.choices[0].delta.tool_calls):
+                if tool_call_delta:
+                    if i >= len(tool_call_deltas):
+                        tool_call_deltas.append(
+                            ToolCallDelta(
+                                id=None, function_name=None, function_arguments=""
+                            )
+                        )
+                    tool_call_deltas[i].id = (
+                        tool_call_delta.id or tool_call_deltas[i].id
+                    )
+                    tool_call_deltas[i].function_name = (
+                        tool_call_delta.function.name
+                        or tool_call_deltas[i].function_name
+                    )
+                    tool_call_deltas[i].function_arguments += (
+                        tool_call_delta.function.arguments or ""
+                    )
+
+                    latest_tool_calls.append(
+                        ToolCall(
+                            function_name=tool_call_deltas[i].function_name,
+                            args=json.loads(tool_call_deltas[i].function_arguments),
+                            id=tool_call_deltas[i].id,
+                        )
+                    )
+                    yield LLMStreamingResponse(
+                        id=id,
+                        response=response,
+                        tool_calls=latest_tool_calls,
+                    )
+
+        # adding tool calls and response to history
+        if latest_tool_calls:
+            # Add a well-formed assistant message that contains tool_calls
+            # OpenAI expects `content` to be a string (use empty string when using tool_calls)
+            self.add_message(
+                {
+                    "role": "assistant",
+                    "content": response or "",
+                    "tool_calls": [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.function_name,
+                                "arguments": json.dumps(tc.args),
+                            },
+                        }
+                        for tc in latest_tool_calls
+                    ],
+                }
+            )
+
+        if response and not latest_tool_calls:
+            self.add_message(
+                {
+                    "role": "assistant",
+                    "content": response,
+                }
+            )
+
+        yield LLMResponse(
+            response=response,
+            tool_calls=latest_tool_calls,
+            message_history=self.get_history(),
+            cost=0,
+            hidden_fields={},
+        )

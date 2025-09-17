@@ -10,6 +10,12 @@ class ToolCall(BaseModel):
     id: str
 
 
+class ToolCallDelta(BaseModel):
+    id: Optional[str] = None
+    function_name: Optional[str] = None
+    function_arguments: Optional[str] = None
+
+
 class ToolCallResponse(BaseModel):
     content: str
     cost: float = 0.0
@@ -18,8 +24,14 @@ class ToolCallResponse(BaseModel):
 
 class LLMResponse(BaseModel):
     response: Any
-    raw_response: ModelResponse
+    raw_response: Optional[ModelResponse] = None
     tool_calls: Optional[List[ToolCall]] = None
     message_history: Optional[List[Dict[str, Any]]] = None
     cost: float
     hidden_fields: dict[str, Any]
+
+
+class LLMStreamingResponse(BaseModel):
+    id: str
+    response: Any
+    tool_calls: Optional[List[ToolCall]] = None
