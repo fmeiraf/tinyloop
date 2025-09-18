@@ -479,13 +479,25 @@ class LLM(BaseInferenceModel):
                         )
                         args = {}
 
-                    latest_tool_calls.append(
-                        ToolCall(
-                            function_name=tool_call_deltas[i].function_name,
-                            args=args,
-                            id=tool_call_deltas[i].id,
-                        )
+                    # Create the new tool call
+                    new_tool_call = ToolCall(
+                        function_name=tool_call_deltas[i].function_name,
+                        args=args,
+                        id=tool_call_deltas[i].id,
                     )
+
+                    # Check if a tool call with the same ID already exists
+                    existing_index = None
+                    for idx, existing_tool_call in enumerate(latest_tool_calls):
+                        if existing_tool_call.id == new_tool_call.id:
+                            existing_index = idx
+                            break
+
+                    # Replace existing or append new
+                    if existing_index is not None:
+                        latest_tool_calls[existing_index] = new_tool_call
+                    else:
+                        latest_tool_calls.append(new_tool_call)
                     yield LLMStreamingResponse(
                         id=id,
                         response=response,
