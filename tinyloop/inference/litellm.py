@@ -470,7 +470,9 @@ class LLM(BaseInferenceModel):
                     latest_tool_calls.append(
                         ToolCall(
                             function_name=tool_call_deltas[i].function_name,
-                            args=json.loads(tool_call_deltas[i].function_arguments),
+                            args=json.loads(tool_call_deltas[i].function_arguments)
+                            if tool_call_deltas[i].function_arguments
+                            else {},
                             id=tool_call_deltas[i].id,
                         )
                     )

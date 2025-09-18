@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import List
+from typing import List, Optional
 
 import mlflow
 from pydantic import BaseModel
@@ -15,7 +15,7 @@ class BaseLoop:
         self,
         model: str,
         tools: List[Tool],
-        output_format: BaseModel,
+        output_format: Optional[BaseModel] = None,
         temperature: float = 1.0,
         system_prompt: str = None,
         llm_kwargs: dict = {},
