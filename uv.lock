@@ -2911,9 +2911,10 @@ wheels = [
 
 [[package]]
 name = "tinyloop"
-version = "0.1.26"
+version = "0.1.33"
 source = { editable = "." }
 dependencies = [
+    { name = "jinja2" },
     { name = "langfuse" },
     { name = "litellm" },
     { name = "mlflow" },
@@ -2932,6 +2933,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "jinja2", specifier = ">=3.1.6" },
     { name = "langfuse", specifier = ">=3.3.2" },
     { name = "litellm", specifier = ">=1.75.9" },
     { name = "mlflow", specifier = ">=3.3.1" },

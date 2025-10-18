@@ -223,6 +223,220 @@ print(f"Tool calls made: {len(inference.tool_calls) if inference.tool_calls else
 print(f"Conversation length: {len(inference.message_history)} messages")
 ```
 
+### 📝 Generate Module
+
+Simple text generation with a clean interface:
+
+```python
+from tinyloop.modules.generate import Generate
+
+# Synchronous generation
+response = Generate.run(
+    prompt="Write a haiku about programming",
+    model="openai/gpt-3.5-turbo",
+    temperature=0.7
+)
+print(response.response)
+
+# Async generation
+response = await Generate.arun(
+    prompt="Explain quantum computing",
+    model="openai/gpt-4",
+    temperature=0.3
+)
+print(response.response)
+
+# Using the class for multiple calls
+generator = Generate(
+    model="openai/gpt-3.5-turbo",
+    temperature=0.5,
+    system_prompt="You are a helpful coding assistant."
+)
+
+response1 = generator.call("How do I implement a binary search?")
+response2 = generator.call("What's the time complexity?")
+```
+
+### 🎨 Prompt Rendering
+
+Manage prompts with YAML templates and Jinja2:
+
+```python
+from tinyloop.utils.prompt_renderer import PromptRenderer, render_base_prompts
+
+# Using PromptRenderer class
+renderer = PromptRenderer("prompts/chat.yaml")
+system_prompt = renderer.render("system", user_name="Alice", context="coding")
+user_prompt = renderer.render("user", question="How do I debug Python?")
+
+```
+
+**Example YAML prompt file (`prompts/chat.yaml`):**
+
+```yaml
+system: |
+  You are {{ user_name }}, a helpful AI assistant specializing in {{ context }}.
+  Always provide clear, actionable advice.
+
+user: |
+  {{ user_name }}, I have a question: {{ question }}
+
+  Please provide a detailed response with examples if relevant.
+```
+
+### 🌊 Streaming Responses
+
+Get real-time responses as they're generated:
+
+```python
+from tinyloop.inference.litellm import LLM
+
+llm = LLM(model="openai/gpt-3.5-turbo", temperature=0.1)
+
+# Stream responses
+for chunk in llm.stream(prompt="Write a story about a robot"):
+    print(chunk.response, end="", flush=True)
+```
+
+### 🔄 Async Tool Loops
+
+Execute tool loops asynchronously for better performance:
+
+```python
+import asyncio
+from tinyloop.modules.tool_loop import ToolLoop
+from tinyloop.features.function_calling import Tool
+from pydantic import BaseModel
+
+def fetch_data(source: str):
+    """Fetch data from a source"""
+    return f"Data from {source}: [1, 2, 3, 4, 5]"
+
+def process_data(data: str):
+    """Process the fetched data"""
+    return f"Processed: {data}"
+
+class AnalysisResult(BaseModel):
+    final_result: str
+    steps_completed: int
+
+async def main():
+    loop = ToolLoop(
+        model="openai/gpt-4",
+        system_prompt="You are a data analyst. Fetch and process data step by step.",
+        temperature=0.1,
+        output_format=AnalysisResult,
+        tools=[Tool(fetch_data), Tool(process_data)]
+    )
+
+    result = await loop.acall(
+        prompt="Fetch data from 'api' and process it"
+    )
+    print(f"Final result: {result.final_result}")
+    print(f"Steps completed: {result.steps_completed}")
+
+# Run the async function
+asyncio.run(main())
+```
+
+### 🔍 Advanced Observability: MLflow Integration
+
+#### Custom Span Names
+
+Create custom MLflow spans with meaningful names:
+
+```python
+from tinyloop.utils.mlflow import mlflow_trace
+from tinyloop.features.function_calling import Tool
+import mlflow
+
+def get_weather(location: str, unit: str = "celsius"):
+    """Get weather for a location"""
+    return f"Weather in {location}: 20°{unit}"
+
+def get_stock_price(symbol: str, currency: str = "USD"):
+    """Get stock price for a symbol"""
+    return f"Stock price for {symbol}: $150.00 {currency}"
+
+# Create tools with custom names for better tracing
+weather_tool = Tool(get_weather, name="weather_service")
+stock_tool = Tool(get_stock_price, name="stock_service")
+
+# Start MLflow run
+with mlflow.start_run():
+    # Call tools - these will create spans with custom names
+    weather_result = weather_tool("London", "fahrenheit")
+    stock_result = stock_tool("AAPL", "USD")
+
+    # The MLflow spans will be named:
+    # - "weather_service.__call__" for the weather tool
+    # - "stock_service.__call__" for the stock tool
+```
+
+#### Custom Agent Tracing
+
+```python
+from tinyloop.utils.mlflow import mlflow_trace
+
+class ResearchAgent:
+    def __init__(self):
+        self.llm = LLM(model="openai/gpt-4", temperature=0.1)
+
+    @mlflow_trace(mlflow.entities.SpanType.AGENT)
+    def research_topic(self, topic: str):
+        """Research a topic comprehensively"""
+        response = self.llm(
+            prompt=f"Research the topic: {topic}. Provide key insights and sources."
+        )
+        return response
+
+    @mlflow_trace(mlflow.entities.SpanType.AGENT)
+    def analyze_findings(self, findings: str):
+        """Analyze research findings"""
+        response = self.llm(
+            prompt=f"Analyze these findings: {findings}. What are the implications?"
+        )
+        return response
+
+# Usage with automatic tracing
+agent = ResearchAgent()
+research_result = agent.research_topic("artificial intelligence")
+analysis_result = agent.analyze_findings(research_result.response)
+```
+
+### 🛡️ Error Handling and Retries
+
+Handle errors gracefully with retry patterns:
+
+```python
+from tinyloop.inference.litellm import LLM
+import time
+import random
+
+def robust_llm_call(llm, prompt, max_retries=3, delay=1):
+    """Make LLM calls with retry logic"""
+    for attempt in range(max_retries):
+        try:
+            response = llm(prompt=prompt)
+            return response
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise e
+            print(f"Attempt {attempt + 1} failed: {e}")
+            time.sleep(delay * (2 ** attempt) + random.uniform(0, 1))
+
+    return None
+
+# Usage
+llm = LLM(model="openai/gpt-3.5-turbo", temperature=0.1)
+response = robust_llm_call(
+    llm,
+    "Explain the concept of machine learning",
+    max_retries=3
+)
+print(response.response)
+```
+
 ### 🔍 Observability: MLflow Integration
 
 #### Automatic Tracing
