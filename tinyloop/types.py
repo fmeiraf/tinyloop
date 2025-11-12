@@ -34,4 +34,5 @@ class LLMResponse(BaseModel):
 class LLMStreamingResponse(BaseModel):
     id: str
     response: Any
+    chunk: Optional[str] = None
     tool_calls: Optional[List[ToolCall]] = None

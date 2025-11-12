@@ -444,6 +444,7 @@ class LLM(BaseInferenceModel):
                 yield LLMStreamingResponse(
                     id=id,
                     response=response,
+                    chunk=choice_content,
                     tool_calls=latest_tool_calls,
                 )
                 continue
@@ -501,6 +502,7 @@ class LLM(BaseInferenceModel):
                     yield LLMStreamingResponse(
                         id=id,
                         response=response,
+                        chunk=choice_content,
                         tool_calls=latest_tool_calls,
                     )
 
