@@ -1,3 +1,5 @@
+import logging
+import os
 from typing import List
 
 import mlflow
@@ -7,7 +9,29 @@ from tinyloop.features.function_calling import Tool
 from tinyloop.modules.base_loop import BaseLoop
 from tinyloop.utils.observability import set_trace_custom
 
-mlflow.litellm.autolog()
+logger = logging.getLogger(__name__)
+
+
+def _truthy_env(value: str | None) -> bool:
+    if value is None:
+        return False
+    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _maybe_enable_mlflow_litellm_autolog() -> None:
+    """
+    Opt-in MLflow LiteLLM autologging.
+
+    Import-time autologging has surprising side effects (e.g. creating `mlruns/`).
+    To enable, set `TINYLOOP_ENABLE_MLFLOW=1` (or pass enable_mlflow=True to ToolLoop).
+    """
+
+    if not _truthy_env(os.getenv("TINYLOOP_ENABLE_MLFLOW")):
+        return
+    try:
+        mlflow.litellm.autolog()
+    except Exception:
+        logger.exception("Failed to enable MLflow LiteLLM autologging")
 
 
 class ToolLoop(BaseLoop):
@@ -20,7 +44,14 @@ class ToolLoop(BaseLoop):
         temperature: float = 1.0,
         system_prompt: str = None,
         llm_kwargs: dict = {},
+        enable_mlflow: bool | None = None,
     ):
+        if enable_mlflow is True:
+            os.environ["TINYLOOP_ENABLE_MLFLOW"] = "1"
+        elif enable_mlflow is False:
+            os.environ["TINYLOOP_ENABLE_MLFLOW"] = "0"
+        _maybe_enable_mlflow_litellm_autolog()
+
         def finish_func():
             return True
 

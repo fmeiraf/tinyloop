@@ -5,19 +5,15 @@ import sys
 from typing import Any, Dict, List, Optional
 
 import litellm
-import mlflow
-from langfuse import observe
 from pydantic import BaseModel
 
 from tinyloop.features.function_calling import Tool
 from tinyloop.features.vision import Image
 from tinyloop.inference.base import BaseInferenceModel
 from tinyloop.types import LLMResponse, LLMStreamingResponse, ToolCall, ToolCallDelta
-from tinyloop.utils.mlflow import mlflow_trace
+from tinyloop.utils.observability import observe
 
 logger = logging.getLogger(__name__)
-
-mlflow.config.enable_async_logging(True)
 
 
 class CostTracker:
@@ -125,7 +121,6 @@ class LLM(BaseInferenceModel):
         self.run_cost = []
 
     @observe(name="litellm.completion", as_type="generation")
-    @mlflow.trace(span_type=mlflow.entities.SpanType.LLM)
     def __call__(
         self,
         prompt: Optional[str] = None,
@@ -136,7 +131,6 @@ class LLM(BaseInferenceModel):
         return self.invoke(prompt=prompt, messages=messages, stream=stream, **kwargs)
 
     @observe(name="litellm.completion", as_type="generation")
-    @mlflow_trace(mlflow.entities.SpanType.LLM)
     async def acall(
         self,
         prompt: Optional[str] = None,

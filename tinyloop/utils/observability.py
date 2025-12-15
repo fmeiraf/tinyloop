@@ -1,7 +1,44 @@
 import inspect
+import os
+from typing import Any, Callable, TypeVar, cast
 
 import mlflow
-from langfuse import observe
+
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def _truthy_env(value: str | None) -> bool:
+    if value is None:
+        return False
+    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def observe(*args: Any, **kwargs: Any):
+    """
+    Safe wrapper around `langfuse.observe`.
+
+    By default, this is a no-op to avoid noisy OTEL exporter errors (e.g. when no
+    collector/Langfuse server is running). To enable Langfuse tracing, set:
+
+        TINYLOOP_ENABLE_LANGFUSE=1
+    """
+
+    enabled = _truthy_env(os.getenv("TINYLOOP_ENABLE_LANGFUSE"))
+    if not enabled:
+        # Support both decorator styles:
+        #  - @observe
+        #  - @observe(name="...", as_type="...")
+        if args and callable(args[0]) and len(args) == 1 and not kwargs:
+            return cast(F, args[0])
+
+        def decorator(func: F) -> F:
+            return func
+
+        return decorator
+
+    from langfuse import observe as _observe
+
+    return _observe(*args, **kwargs)
 
 
 # helper: set span name to "ClassName.method" using the function's qualname

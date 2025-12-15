@@ -437,11 +437,70 @@ response = robust_llm_call(
 print(response.response)
 ```
 
+### 🔭 Observability (Opt-in)
+
+TinyLoop includes optional tracing integrations. **By default, tracing/export is disabled** (no-op) to avoid surprise side effects such as:
+
+- Creating local `mlruns/` directories
+- Noisy “Exception while exporting Span” errors when no collector/server is running
+
+You can enable each integration explicitly with environment variables (recommended), or via module parameters where available.
+
+#### Langfuse / OpenTelemetry (no-op by default)
+
+TinyLoop uses a safe wrapper for Langfuse’s `observe` decorator. Unless enabled, all `@observe(...)` decorators are **no-ops**.
+
+- **Enable**:
+
+```bash
+export TINYLOOP_ENABLE_LANGFUSE=1
+```
+
+- **Disable** (default):
+
+```bash
+export TINYLOOP_ENABLE_LANGFUSE=0
+```
+
+If you enable Langfuse, make sure your OTEL/Langfuse endpoint is running and configured in your environment.
+
+#### MLflow (autolog is opt-in)
+
+TinyLoop provides MLflow tracing helpers (e.g. `mlflow_trace`) and can optionally enable MLflow + LiteLLM autologging.
+
+- **Enable MLflow LiteLLM autologging (for `ToolLoop`)**:
+
+```bash
+export TINYLOOP_ENABLE_MLFLOW=1
+```
+
+- **Disable** (default):
+
+```bash
+export TINYLOOP_ENABLE_MLFLOW=0
+```
+
+You can also enable/disable it per `ToolLoop` instance:
+
+```python
+from tinyloop.modules.tool_loop import ToolLoop
+
+loop = ToolLoop(
+    model="openai/gpt-4.1",
+    tools=[],
+    output_format=dict,  # example only
+    enable_mlflow=False,  # default is None (use env var)
+)
+```
+
 ### 🔍 Observability: MLflow Integration
 
 #### Automatic Tracing
 
-TinyLoop automatically integrates with MLflow for tracing:
+TinyLoop supports MLflow tracing utilities, and (optionally) MLflow + LiteLLM autologging.
+
+- By default, TinyLoop **does not enable MLflow autologging at import time** (to avoid creating local `mlruns/` unexpectedly).
+- To enable MLflow LiteLLM autologging for `ToolLoop`, set `TINYLOOP_ENABLE_MLFLOW=1` or pass `enable_mlflow=True` to `ToolLoop`.
 
 ```python
 from tinyloop.utils.mlflow import mlflow_trace
