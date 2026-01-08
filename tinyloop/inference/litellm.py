@@ -11,7 +11,6 @@ from tinyloop.features.function_calling import Tool
 from tinyloop.features.vision import Image
 from tinyloop.inference.base import BaseInferenceModel
 from tinyloop.types import LLMResponse, LLMStreamingResponse, ToolCall, ToolCallDelta
-from tinyloop.utils.observability import observe
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +119,6 @@ class LLM(BaseInferenceModel):
         self.async_client = litellm.acompletion
         self.run_cost = []
 
-    @observe(name="litellm.completion", as_type="generation")
     def __call__(
         self,
         prompt: Optional[str] = None,
@@ -130,7 +128,6 @@ class LLM(BaseInferenceModel):
     ) -> LLMResponse:
         return self.invoke(prompt=prompt, messages=messages, stream=stream, **kwargs)
 
-    @observe(name="litellm.completion", as_type="generation")
     async def acall(
         self,
         prompt: Optional[str] = None,

@@ -14,12 +14,7 @@ from typing import (
     get_type_hints,
 )
 
-import mlflow
-
 from tinyloop.types import ToolCallResponse
-from tinyloop.utils.observability import set_trace_custom
-
-mlflow.config.enable_async_logging(True)
 
 
 class Tool:
@@ -55,17 +50,11 @@ class Tool:
             func, self.name, self.description, self.hidden_params
         )
 
-    @set_trace_custom(
-        mlflow.entities.SpanType.TOOL, lambda self, func: f"{self.name}.{func.__name__}"
-    )
     def __call__(self, *args, **kwargs) -> ToolCallResponse:
         """Allow the tool to be called like the original function."""
         tool_result = self.func(*args, **kwargs)
         return tool_result
 
-    @set_trace_custom(
-        mlflow.entities.SpanType.TOOL, lambda self, func: f"{self.name}.{func.__name__}"
-    )
     async def acall(self, *args, **kwargs) -> ToolCallResponse:
         """Allow the tool to be called like the original function."""
         if inspect.iscoroutinefunction(self.func):

@@ -2,7 +2,7 @@
   <img src="docs/images/tiny_logo_v1.png" alt="tinyLoop Logo" width="200"/>
 </p>
 
-> A lightweight Python library for building AI-powered applications with clean function calling, vision support, and MLflow integration.
+> A lightweight Python library for building AI-powered applications with clean function calling, vision support, and structured outputs.
 
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -18,10 +18,8 @@ TinyLoop is fully built on top of [LiteLLM](https://github.com/BerriAI/litellm),
 TinyLoop provides a clean, intuitive interface for working with Large Language Models (LLMs), featuring:
 
 - 🎯 **Clean Function Calling**: Convert Python functions to JSON tool definitions automatically
-- 🔍 **MLflow Integration**: Built-in tracing and monitoring with customizable span names
 - 👁️ **Vision Support**: Handle images and vision models seamlessly
 - 📊 **Structured Output**: Generate structured data from LLM responses using Pydantic
-- 🔄 **Tool Loops**: Execute multi-step tool calling workflows
 - ⚡ **Async Support**: Full async/await support for all operations
 
 ## 📦 Installation
@@ -67,48 +65,6 @@ llm = LLM(model="openai/gpt-3.5-turbo", temperature=0.1)
 # Async text generation
 response = await llm.acall(prompt="Hello, how are you?")
 print(response)
-```
-
-### 🔄 Tool Loops
-
-Execute multi-step tool calling workflows:
-
-```python
-from tinyloop.modules.tool_loop import ToolLoop
-from tinyloop.features.function_calling import Tool
-from pydantic import BaseModel
-import random
-
-def roll_dice():
-    """Roll a dice and return the result"""
-    return random.randint(1, 6)
-
-class FinalAnswer(BaseModel):
-    last_roll: int
-    reached_goal: bool
-
-# Create tool loop
-loop = ToolLoop(
-    model="openai/gpt-4.1",
-    system_prompt="""
-    You are a dice rolling assistant.
-    Roll a dice until you get the number indicated in the prompt.
-    Use the roll_dice function to roll the dice.
-    Return the last roll and whether you reached the goal.
-    """,
-    temperature=0.1,
-    output_format=FinalAnswer,
-    tools=[Tool(roll_dice)]
-)
-
-# Execute the loop
-response = loop(
-    prompt="Roll a dice until you get a 6",
-    parallel_tool_calls=False,
-)
-
-print(f"Last roll: {response.last_roll}")
-print(f"Reached goal: {response.reached_goal}")
 ```
 
 ### Supported Features
@@ -298,112 +254,6 @@ for chunk in llm.stream(prompt="Write a story about a robot"):
     print(chunk.response, end="", flush=True)
 ```
 
-### 🔄 Async Tool Loops
-
-Execute tool loops asynchronously for better performance:
-
-```python
-import asyncio
-from tinyloop.modules.tool_loop import ToolLoop
-from tinyloop.features.function_calling import Tool
-from pydantic import BaseModel
-
-def fetch_data(source: str):
-    """Fetch data from a source"""
-    return f"Data from {source}: [1, 2, 3, 4, 5]"
-
-def process_data(data: str):
-    """Process the fetched data"""
-    return f"Processed: {data}"
-
-class AnalysisResult(BaseModel):
-    final_result: str
-    steps_completed: int
-
-async def main():
-    loop = ToolLoop(
-        model="openai/gpt-4",
-        system_prompt="You are a data analyst. Fetch and process data step by step.",
-        temperature=0.1,
-        output_format=AnalysisResult,
-        tools=[Tool(fetch_data), Tool(process_data)]
-    )
-
-    result = await loop.acall(
-        prompt="Fetch data from 'api' and process it"
-    )
-    print(f"Final result: {result.final_result}")
-    print(f"Steps completed: {result.steps_completed}")
-
-# Run the async function
-asyncio.run(main())
-```
-
-### 🔍 Advanced Observability: MLflow Integration
-
-#### Custom Span Names
-
-Create custom MLflow spans with meaningful names:
-
-```python
-from tinyloop.utils.mlflow import mlflow_trace
-from tinyloop.features.function_calling import Tool
-import mlflow
-
-def get_weather(location: str, unit: str = "celsius"):
-    """Get weather for a location"""
-    return f"Weather in {location}: 20°{unit}"
-
-def get_stock_price(symbol: str, currency: str = "USD"):
-    """Get stock price for a symbol"""
-    return f"Stock price for {symbol}: $150.00 {currency}"
-
-# Create tools with custom names for better tracing
-weather_tool = Tool(get_weather, name="weather_service")
-stock_tool = Tool(get_stock_price, name="stock_service")
-
-# Start MLflow run
-with mlflow.start_run():
-    # Call tools - these will create spans with custom names
-    weather_result = weather_tool("London", "fahrenheit")
-    stock_result = stock_tool("AAPL", "USD")
-
-    # The MLflow spans will be named:
-    # - "weather_service.__call__" for the weather tool
-    # - "stock_service.__call__" for the stock tool
-```
-
-#### Custom Agent Tracing
-
-```python
-from tinyloop.utils.mlflow import mlflow_trace
-
-class ResearchAgent:
-    def __init__(self):
-        self.llm = LLM(model="openai/gpt-4", temperature=0.1)
-
-    @mlflow_trace(mlflow.entities.SpanType.AGENT)
-    def research_topic(self, topic: str):
-        """Research a topic comprehensively"""
-        response = self.llm(
-            prompt=f"Research the topic: {topic}. Provide key insights and sources."
-        )
-        return response
-
-    @mlflow_trace(mlflow.entities.SpanType.AGENT)
-    def analyze_findings(self, findings: str):
-        """Analyze research findings"""
-        response = self.llm(
-            prompt=f"Analyze these findings: {findings}. What are the implications?"
-        )
-        return response
-
-# Usage with automatic tracing
-agent = ResearchAgent()
-research_result = agent.research_topic("artificial intelligence")
-analysis_result = agent.analyze_findings(research_result.response)
-```
-
 ### 🛡️ Error Handling and Retries
 
 Handle errors gracefully with retry patterns:
@@ -437,126 +287,21 @@ response = robust_llm_call(
 print(response.response)
 ```
 
-### 🔭 Observability (Opt-in)
-
-TinyLoop includes optional tracing integrations. **By default, tracing/export is disabled** (no-op) to avoid surprise side effects such as:
-
-- Creating local `mlruns/` directories
-- Noisy “Exception while exporting Span” errors when no collector/server is running
-
-You can enable each integration explicitly with environment variables (recommended), or via module parameters where available.
-
-#### Langfuse / OpenTelemetry (no-op by default)
-
-TinyLoop uses a safe wrapper for Langfuse’s `observe` decorator. Unless enabled, all `@observe(...)` decorators are **no-ops**.
-
-- **Enable**:
-
-```bash
-export TINYLOOP_ENABLE_LANGFUSE=1
-```
-
-- **Disable** (default):
-
-```bash
-export TINYLOOP_ENABLE_LANGFUSE=0
-```
-
-If you enable Langfuse, make sure your OTEL/Langfuse endpoint is running and configured in your environment.
-
-#### MLflow (autolog is opt-in)
-
-TinyLoop provides MLflow tracing helpers (e.g. `mlflow_trace`) and can optionally enable MLflow + LiteLLM autologging.
-
-- **Enable MLflow LiteLLM autologging (for `ToolLoop`)**:
-
-```bash
-export TINYLOOP_ENABLE_MLFLOW=1
-```
-
-- **Disable** (default):
-
-```bash
-export TINYLOOP_ENABLE_MLFLOW=0
-```
-
-You can also enable/disable it per `ToolLoop` instance:
-
-```python
-from tinyloop.modules.tool_loop import ToolLoop
-
-loop = ToolLoop(
-    model="openai/gpt-4.1",
-    tools=[],
-    output_format=dict,  # example only
-    enable_mlflow=False,  # default is None (use env var)
-)
-```
-
-### 🔍 Observability: MLflow Integration
-
-#### Automatic Tracing
-
-TinyLoop supports MLflow tracing utilities, and (optionally) MLflow + LiteLLM autologging.
-
-- By default, TinyLoop **does not enable MLflow autologging at import time** (to avoid creating local `mlruns/` unexpectedly).
-- To enable MLflow LiteLLM autologging for `ToolLoop`, set `TINYLOOP_ENABLE_MLFLOW=1` or pass `enable_mlflow=True` to `ToolLoop`.
-
-```python
-from tinyloop.utils.mlflow import mlflow_trace
-
-class Agent:
-    @mlflow_trace(mlflow.entities.SpanType.AGENT)
-    def __call__(self, prompt: str, **kwargs):
-        self.llm.add_message(self.llm._prepare_user_message(prompt))
-        for _ in range(self.max_iterations):
-            response = self.llm(
-                messages=self.llm.get_history(), tools=self.tools, **kwargs
-            )
-            if response.tool_calls:
-                should_finish = False
-                for tool_call in response.tool_calls:
-                    tool_response = self.tools_map[tool_call.function_name](
-                        **tool_call.args
-                    )
-
-                    self.llm.add_message(
-                        self._format_tool_response(tool_call, str(tool_response))
-                    )
-
-                    if tool_call.function_name == "finish":
-                        should_finish = True
-                        break
-
-                if should_finish:
-                    break
-
-        return self.llm(
-            messages=self.llm.get_history(),
-            response_format=self.output_format,
-    )
-```
-
-<p align="center">
-  <img src="docs/images/mlflow_example.png" alt="tinyLoop Logo"/>
-</p>
-
 ## 🏗️ Project Structure
 
 ```
 tinyloop/
 ├── features/
 │   ├── function_calling.py  # Function calling utilities
-│   └── vision.py           # Vision model support
+│   └── vision.py            # Vision model support
 ├── inference/
-│   ├── base.py             # Base inference classes
-│   └── litellm.py          # LiteLLM integration
+│   ├── base.py              # Base inference classes
+│   └── litellm.py           # LiteLLM integration
 ├── modules/
-│   ├── base_loop.py        # Base loop implementation
-│   ├── generate.py         # Generation modules
-│   └── tool_loop.py        # Tool execution loop
+│   ├── base_loop.py         # Base loop implementation
+│   └── generate.py          # Generation modules
 └── utils/
-    └── mlflow.py           # MLflow utilities
+    └── prompt_renderer.py   # Prompt rendering utilities
 ```
 
 ## 🧪 Development
