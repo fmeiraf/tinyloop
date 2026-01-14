@@ -21,6 +21,7 @@ TinyLoop provides a clean, intuitive interface for working with Large Language M
 - 👁️ **Vision Support**: Handle images and vision models seamlessly
 - 📊 **Structured Output**: Generate structured data from LLM responses using Pydantic
 - ⚡ **Async Support**: Full async/await support for all operations
+- 📈 **Context Analysis (CTX)**: Monitor token usage and detect when conversations enter the "dumb zone"
 
 ## 📦 Installation
 
@@ -254,6 +255,92 @@ for chunk in llm.stream(prompt="Write a story about a robot"):
     print(chunk.response, end="", flush=True)
 ```
 
+### 📈 Context Analysis (CTX)
+
+Monitor token usage and detect when conversations enter the "dumb zone" - a region of the context window where model performance may degrade.
+
+#### CLI Usage
+
+```bash
+# Full report with TUI tables
+tinyloop ctx conversation.json
+
+# Simple one-line status
+tinyloop ctx -s conversation.json
+
+# Pipe from another command
+cat conversation.json | tinyloop ctx
+
+# Custom threshold (30%) and context window
+tinyloop ctx -t 0.3 -c 200000 conversation.json
+
+# Specify model for accurate tokenization
+tinyloop ctx -m anthropic/claude-sonnet-4-20250514 conversation.json
+```
+
+#### Programmatic API
+
+```python
+from tinyloop.ctx import CTXAnalyzer, analyze_conversation, get_status
+
+# Quick status check
+messages = [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "Hello!"},
+    {"role": "assistant", "content": "Hi there! How can I help?"},
+]
+
+status = get_status(messages, model="gpt-4", threshold=0.4)
+print(status.message)
+# Output: ✓ 45 / 67,200 tokens (0.0%) — 67,155 tokens until dumb zone
+
+# Full analysis
+analyzer = CTXAnalyzer(
+    model="anthropic/claude-sonnet-4-20250514",
+    context_window=168000,
+    threshold=0.4
+)
+result = analyzer.analyze(messages)
+
+print(f"Total tokens: {result.total_tokens}")
+print(f"In dumb zone: {result.is_in_dumb_zone}")
+print(f"Categories: {result.categories}")
+```
+
+#### LLM Integration with Middleware
+
+```python
+from tinyloop import LLM
+from tinyloop.ctx import CTXMiddleware, CTXThresholdExceeded
+
+# Create middleware with warning action
+ctx = CTXMiddleware(
+    context_window=168000,
+    threshold=0.4,
+    action="warn"  # or "raise" to throw exception
+)
+
+# Use with LLM
+llm = LLM(model="anthropic/claude-sonnet-4-20250514")
+llm(prompt="Hello!")
+llm(prompt="Tell me about Python")
+
+# Check status at any point
+status = ctx.check(llm)
+print(status.message)
+
+if status.is_in_dumb_zone:
+    print("Warning: Consider summarizing the conversation")
+
+# Or use raise action to stop when threshold exceeded
+ctx_strict = CTXMiddleware(threshold=0.4, action="raise")
+try:
+    # ... long conversation ...
+    ctx_strict.check(llm)
+except CTXThresholdExceeded as e:
+    print(f"Threshold exceeded at {e.percentage_used:.1%}")
+```
+
 ### 🛡️ Error Handling and Retries
 
 Handle errors gracefully with retry patterns:
@@ -291,6 +378,12 @@ print(response.response)
 
 ```
 tinyloop/
+├── ctx/
+│   ├── analyzer.py          # Core CTX analysis logic
+│   ├── categories.py        # Token categorization
+│   ├── cli.py               # CLI implementation
+│   ├── middleware.py        # LLM integration middleware
+│   └── tokenizers.py        # Tokenizer abstractions
 ├── features/
 │   ├── function_calling.py  # Function calling utilities
 │   └── vision.py            # Vision model support
@@ -325,6 +418,7 @@ Check out the Jupyter notebooks for more detailed examples:
 
 - [`basic_usage.ipynb`](notebooks/basic_usage.ipynb) - Basic usage examples
 - [`modules.ipynb`](notebooks/modules.ipynb) - Advanced module usage
+- [`ctx_analysis.ipynb`](notebooks/ctx_analysis.ipynb) - Context analysis and dumb zone detection
 
 ## 🤝 Contributing
 
